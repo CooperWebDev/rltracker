@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rocket League Stats</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Roboto&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <h1>Rocket League Stats Viewer</h1>
+    <div class="input-group">
+      <input id="epicId" placeholder="Enter your Epic ID" />
+      <button onclick="fetchStats()">Search</button>
+    </div>
+    <div class="table-container">
+      <table id="statsTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  async function fetchStats() {
+    const epicId = document.getElementById('epicId').value.trim();
+    if (!epicId) return alert('Please enter a valid Epic ID.');
+
+    const response = await fetch(`/api/stats/${epicId}`);
+    const data = await response.json();
+
+    const tableHead = document.getElementById('tableHead');
+    const tableBody = document.getElementById('tableBody');
+
+    tableHead.innerHTML = '';
+    tableBody.innerHTML = '';
+
+    const values = data.values;
+
+    if (!values || values.length < 15) {
+      tableBody.innerHTML = '<tr><td colspan="10">Not enough data or data format incorrect.</td></tr>';
+      return;
+    }
+
+    // GENERAL STATS
+    const generalStats = [
+      { label: "Wins", value: values[0] },
+      { label: "MVPs", value: values[1] },
+      { label: "Goals", value: values[2] },
+      { label: "Assists", value: values[3] },
+    ];
+
+    const extraStats = [
+      { label: "", value: values[4] },
+      { label: "", value: values[5] },
+    ];
+
+    const modes = [
+      { name: "1v1 DUEL", rank: values[6], division: values[10] },
+      { name: "2v2 DOUBLES", rank: values[7], division: values[11] },
+      { name: "3v3 STANDARD", rank: values[8], division: values[12] },
+      { name: "TOURNAMENTS", rank: values[9], division: values[13] },
+    ];
+
+
+    // GENERAL STATS row
+    const headRow = document.createElement('tr');
+    const dataRow = document.createElement('tr');
+    generalStats.forEach(stat => {
+      const th = document.createElement('th');
+      th.innerText = stat.label;
+      headRow.appendChild(th);
+
+      const td = document.createElement('td');
+      td.innerText = stat.value;
+      dataRow.appendChild(td);
+    });
+    tableHead.appendChild(headRow);
+    tableBody.appendChild(dataRow);
+
+    // EXTRA STATS (e.g., Saves, Shots)
+    const extraRow = document.createElement('tr');
+    extraStats.forEach(stat => {
+      const td = document.createElement('td');
+      td.colSpan = 2;
+      td.innerText = `${stat.value} ${stat.label}`;
+      td.style.fontWeight = 'bold';
+      extraRow.appendChild(td);
+    });
+    tableBody.appendChild(extraRow);
+
+    // RANKS - Display two modes per row with minimal spacing
+    for (let i = 0; i < modes.length; i += 2) {
+      const mode1 = modes[i];
+      const mode2 = modes[i + 1];
+
+      // Mode names row
+      const titleRow = document.createElement('tr');
+      titleRow.innerHTML = `
+        <th colspan="2" style="text-align:center; padding-top:20px; font-size:16px; color:#58a6ff;">${mode1.name}</th>
+        ${mode2 ? `<th colspan="2" style="text-align:center; padding-top:20px; font-size:16px; color:#58a6ff;">${mode2.name}</th>` : ''}
+      `;
+      tableBody.appendChild(titleRow);
+
+      // Column labels
+      const labelRow = document.createElement('tr');
+      labelRow.innerHTML = `
+        <th>RANK</th><th>DIVISION</th>
+        ${mode2 ? '<th>RANK</th><th>DIVISION</th>' : ''}
+      `;
+      tableBody.appendChild(labelRow);
+
+      // Values row
+      const valueRow = document.createElement('tr');
+      valueRow.innerHTML = `
+        <td>${mode1.rank}</td><td>${mode1.division}</td>
+        ${mode2 ? `<td>${mode2.rank}</td><td>${mode2.division}</td>` : ''}
+      `;
+      tableBody.appendChild(valueRow);
+    }
+  }
+</script>
+</body>
+</html>
