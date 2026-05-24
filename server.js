@@ -10,6 +10,10 @@ const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 // Serve static files from the root directory
 app.use(express.static(__dirname));
 
+app.get('/style.css', (req, res) => {
+  res.sendFile(path.join(__dirname, 'style.css'));
+});
+
 // Define a route for the root path to serve index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
