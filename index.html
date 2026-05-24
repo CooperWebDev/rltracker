@@ -2,123 +2,278 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Rocket League Stats</title>
+  <title>Rocket League Stats Viewer</title>
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Roboto&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="container">
-    <h1>Rocket League Stats Viewer</h1>
-    <div class="input-group">
-      <input id="epicId" placeholder="Enter your Epic ID" />
-      <button onclick="fetchStats()">Search</button>
-    </div>
-    <div class="table-container">
-      <table id="statsTable">
-        <thead id="tableHead"></thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-    </div>
+  <div class="page-shell">
+    <header class="hero">
+      <p class="eyebrow">Coopers Rocket League Tracker</p>
+      <h1>Tracked Epic Accounts</h1>
+      <p class="hero-copy">Click any tab to review the current season, total stats, and rank images for each account.</p>
+    </header>
+
+    <div id="tabRow" class="tab-row"></div>
+
+    <main class="content-panel">
+      <div id="statusMessage" class="status-message"></div>
+      <div id="profileContent" class="profile-content"></div>
+    </main>
   </div>
 
-<script>
-  async function fetchStats() {
-    const epicId = document.getElementById('epicId').value.trim();
-    if (!epicId) return alert('Please enter a valid Epic ID.');
+  <script>
+    const accountIds = ['CooperPanicked', 'CooperAdoresElla', 'CooperLovesElla', 'EllaObsession'];
+    let profiles = {};
+    let activeAccount = accountIds[0];
 
-    const response = await fetch(`/api/stats/${epicId}`);
-    const data = await response.json();
-
-    const tableHead = document.getElementById('tableHead');
-    const tableBody = document.getElementById('tableBody');
-
-    tableHead.innerHTML = '';
-    tableBody.innerHTML = '';
-
-    const values = data.values;
-
-    if (!values || values.length < 15) {
-      tableBody.innerHTML = '<tr><td colspan="10">Not enough data or data format incorrect.</td></tr>';
-      return;
+    function setStatus(message) {
+      const status = document.getElementById('statusMessage');
+      status.textContent = message;
     }
 
-    // GENERAL STATS
-    const generalStats = [
-      { label: "Wins", value: values[0] },
-      { label: "MVPs", value: values[1] },
-      { label: "Goals", value: values[2] },
-      { label: "Assists", value: values[3] },
-    ];
+    function renderTabs() {
+      const tabRow = document.getElementById('tabRow');
+      tabRow.innerHTML = '';
 
-    const extraStats = [
-      { label: "", value: values[4] },
-      { label: "", value: values[5] },
-    ];
-
-    const modes = [
-      { name: "1v1 DUEL", rank: values[6], division: values[10] },
-      { name: "2v2 DOUBLES", rank: values[7], division: values[11] },
-      { name: "3v3 STANDARD", rank: values[8], division: values[12] },
-      { name: "TOURNAMENTS", rank: values[9], division: values[13] },
-    ];
-
-
-    // GENERAL STATS row
-    const headRow = document.createElement('tr');
-    const dataRow = document.createElement('tr');
-    generalStats.forEach(stat => {
-      const th = document.createElement('th');
-      th.innerText = stat.label;
-      headRow.appendChild(th);
-
-      const td = document.createElement('td');
-      td.innerText = stat.value;
-      dataRow.appendChild(td);
-    });
-    tableHead.appendChild(headRow);
-    tableBody.appendChild(dataRow);
-
-    // EXTRA STATS (e.g., Saves, Shots)
-    const extraRow = document.createElement('tr');
-    extraStats.forEach(stat => {
-      const td = document.createElement('td');
-      td.colSpan = 2;
-      td.innerText = `${stat.value} ${stat.label}`;
-      td.style.fontWeight = 'bold';
-      extraRow.appendChild(td);
-    });
-    tableBody.appendChild(extraRow);
-
-    // RANKS - Display two modes per row with minimal spacing
-    for (let i = 0; i < modes.length; i += 2) {
-      const mode1 = modes[i];
-      const mode2 = modes[i + 1];
-
-      // Mode names row
-      const titleRow = document.createElement('tr');
-      titleRow.innerHTML = `
-        <th colspan="2" style="text-align:center; padding-top:20px; font-size:16px; color:#58a6ff;">${mode1.name}</th>
-        ${mode2 ? `<th colspan="2" style="text-align:center; padding-top:20px; font-size:16px; color:#58a6ff;">${mode2.name}</th>` : ''}
-      `;
-      tableBody.appendChild(titleRow);
-
-      // Column labels
-      const labelRow = document.createElement('tr');
-      labelRow.innerHTML = `
-        <th>RANK</th><th>DIVISION</th>
-        ${mode2 ? '<th>RANK</th><th>DIVISION</th>' : ''}
-      `;
-      tableBody.appendChild(labelRow);
-
-      // Values row
-      const valueRow = document.createElement('tr');
-      valueRow.innerHTML = `
-        <td>${mode1.rank}</td><td>${mode1.division}</td>
-        ${mode2 ? `<td>${mode2.rank}</td><td>${mode2.division}</td>` : ''}
-      `;
-      tableBody.appendChild(valueRow);
+      accountIds.forEach((accountId) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `tab-button${accountId === activeAccount ? ' active' : ''}`;
+        button.textContent = accountId;
+        button.addEventListener('click', () => {
+          activeAccount = accountId;
+          renderTabs();
+          renderProfile(activeAccount);
+        });
+        tabRow.appendChild(button);
+      });
     }
-  }
-</script>
+
+    function formatValue(value) {
+      if (value === null || value === undefined || value === '') return '—';
+      return value;
+    }
+
+    function createStatCard(label, value) {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+
+      const title = document.createElement('p');
+      title.className = 'stat-label';
+      title.textContent = label;
+
+      const amount = document.createElement('p');
+      amount.className = 'stat-value';
+      amount.textContent = formatValue(value);
+
+      card.append(title, amount);
+      return card;
+    }
+
+    function renderMode(mode) {
+      const article = document.createElement('article');
+      article.className = 'mode-card';
+
+      // Left: Icon
+      const imageWrap = document.createElement('div');
+      imageWrap.className = 'mode-image-wrap';
+      if (mode.imageUrl) {
+        const img = document.createElement('img');
+        img.src = mode.imageUrl;
+        img.alt = `${mode.label || 'Rank'} icon`;
+        img.loading = 'lazy';
+        imageWrap.appendChild(img);
+      } else {
+        imageWrap.textContent = 'No rank image';
+      }
+
+      // Right: Info
+      const info = document.createElement('div');
+      info.style.display = 'flex';
+      info.style.flexDirection = 'column';
+      info.style.gap = '2px';
+      info.style.flex = '1';
+
+      // Top row: Mode name
+      const title = document.createElement('h3');
+      title.textContent = mode.label || 'Mode';
+      info.appendChild(title);
+
+      // Large rating row
+      const ratingRow = document.createElement('div');
+      ratingRow.style.display = 'flex';
+      ratingRow.style.alignItems = 'center';
+      ratingRow.style.gap = '12px';
+
+      const rating = document.createElement('span');
+      rating.className = 'mode-rating';
+      rating.textContent = mode.rating !== undefined && mode.rating !== null ? mode.rating : '—';
+      ratingRow.appendChild(rating);
+
+      // Matches played in the rating row
+      const matches = document.createElement('span');
+      matches.className = 'mode-meta';
+      matches.textContent = mode.matchesPlayed !== null && mode.matchesPlayed !== undefined ? `${mode.matchesPlayed} Games` : 'Games: —';
+      ratingRow.appendChild(matches);
+
+      info.appendChild(ratingRow);
+
+      // Rank name
+      const rankRow = document.createElement('div');
+      rankRow.className = 'mode-meta';
+      rankRow.textContent = mode.rank || 'Unranked';
+      info.appendChild(rankRow);
+
+      // Details: division, streak
+      const details = document.createElement('div');
+      details.className = 'mode-details';
+
+      const division = document.createElement('span');
+      division.textContent = mode.division || 'Division: —';
+      details.appendChild(division);
+
+      const streak = document.createElement('span');
+      if (mode.streak) {
+        streak.textContent = `${mode.streak.type === 'win' ? 'Win' : 'Loss'} Streak: ${mode.streak.count}`;
+        streak.style.color = mode.streak.type === 'win' ? '#ffe066' : '#ff5e5e';
+      } else {
+        streak.textContent = 'Streak: —';
+      }
+      details.appendChild(streak);
+
+      info.appendChild(details);
+
+      // Compose card
+      article.appendChild(imageWrap);
+      article.appendChild(info);
+      return article;
+    }
+
+    function renderProfile(accountId) {
+      const container = document.getElementById('profileContent');
+      const profile = profiles[accountId];
+
+      container.innerHTML = '';
+
+      if (!profile) {
+        container.innerHTML = '<p class="empty-state"></p>';
+        return;
+      }
+
+      const currentSeason = profile.currentSeason || {};
+      const totalStats = profile.totalStats || { labels: [], values: [] };
+
+      const header = document.createElement('section');
+      header.className = 'account-header';
+
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'name-wrap';
+
+      const heading = document.createElement('h2');
+      heading.textContent = profile.displayName || accountId;
+
+      const subtitle = document.createElement('p');
+      subtitle.className = 'account-subtitle';
+      subtitle.textContent = `${profile.platform || 'Epic'} • Updated ${profile.updated || 'Unknown'}`;
+
+      const currentTag = document.createElement('div');
+      currentTag.className = 'current-tag';
+
+      if (currentSeason.reward?.imageUrl) {
+        const tagIcon = document.createElement('img');
+        tagIcon.src = currentSeason.reward.imageUrl;
+        tagIcon.alt = `${currentSeason.reward?.title || 'Season Reward'} icon`;
+        tagIcon.className = 'current-tag-icon';
+        tagIcon.loading = 'lazy';
+        currentTag.appendChild(tagIcon);
+      }
+
+      const tagText = document.createElement('span');
+      tagText.textContent = `Season Reward: ${currentSeason.reward?.title || 'No season reward'}`;
+      currentTag.appendChild(tagText);
+
+      nameWrap.append(heading, subtitle, currentTag);
+      header.appendChild(nameWrap);
+
+      const statsSection = document.createElement('section');
+      statsSection.className = 'stats-section';
+      const statsHeading = document.createElement('h3');
+      statsHeading.textContent = 'Total Stats';
+      const statsGrid = document.createElement('div');
+      statsGrid.className = 'stats-grid';
+
+      if (totalStats.labels.length && totalStats.values.length) {
+        totalStats.labels.forEach((label, index) => {
+          statsGrid.appendChild(createStatCard(label, totalStats.values[index]));
+        });
+      } else {
+        statsGrid.appendChild(createStatCard('Status', 'No total stats were returned.'));
+      }
+
+      statsSection.append(statsHeading, statsGrid);
+
+      const modesSection = document.createElement('section');
+      modesSection.className = 'modes-section';
+      const modesHeading = document.createElement('h3');
+      modesHeading.textContent = 'Rank Stats';
+      const modesGrid = document.createElement('div');
+      modesGrid.className = 'mode-grid';
+
+      const modes = Array.isArray(currentSeason.modes) ? currentSeason.modes : [];
+      if (modes.length) {
+        modes.forEach((mode) => modesGrid.appendChild(renderMode(mode)));
+      } else {
+        const fallback = document.createElement('p');
+        fallback.className = 'empty-state';
+        fallback.textContent = 'No skill mode data was extracted for this account.';
+        modesGrid.appendChild(fallback);
+      }
+
+      modesSection.append(modesHeading, modesGrid);
+      container.append(header, statsSection, modesSection);
+    }
+
+    async function loadProfiles() {
+      setStatus('');
+      renderTabs();
+      renderProfile(activeAccount);
+
+      try {
+        const results = await Promise.allSettled(
+          accountIds.map(async (accountId) => {
+            const response = await fetch(`/api/stats/${accountId}`);
+            const payload = await response.json();
+
+            if (!response.ok || !payload.profile) {
+              throw new Error(payload.error || `Failed to load ${accountId}`);
+            }
+
+            return { accountId, profile: payload.profile };
+          })
+        );
+
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            profiles[result.value.accountId] = result.value.profile;
+          }
+        });
+
+        const failures = results.filter((result) => result.status === 'rejected');
+        if (failures.length) {
+          setStatus(`Loaded ${results.length - failures.length} of ${results.length} accounts. Some profiles could not be fetched.`);
+        } else {
+          setStatus('');
+        }
+
+        renderProfile(activeAccount);
+      } catch (error) {
+        setStatus('Unable to load tracked accounts right now.');
+        renderProfile(activeAccount);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', loadProfiles);
+  </script>
 </body>
 </html>
