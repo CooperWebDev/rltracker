@@ -1,7 +1,7 @@
 {
   "name": "rocket-league-stats",
   "version": "1.0.0",
-  "description": "A Rocket League stats viewer using Epic ID and rlstats.net",
+  "description": "A Rocket League stats viewer using Epic ID",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

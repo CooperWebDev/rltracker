@@ -175,6 +175,48 @@ function parseMarkdownStatsTable(lines) {
   };
 }
 
+function parseMarkdownUpdateHistory(lines) {
+  const startIndex = lines.findIndex((line) => /^####\s*Update History/i.test(line));
+  if (startIndex === -1) {
+    return [];
+  }
+
+  const rows = [];
+  for (let i = startIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line.startsWith('|')) {
+      break;
+    }
+
+    if (/^\|\s*-+/.test(line)) {
+      continue;
+    }
+
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => normalizeWhitespace(cell));
+
+    if (cells.length < 5) {
+      continue;
+    }
+
+    if (cells[0] === 'Updated' && cells[1] === 'Playlist') {
+      continue;
+    }
+
+    rows.push({
+      updated: cells[0] || null,
+      playlist: cells[1] || null,
+      matches: parseIntFromText(cells[2]),
+      rating: parseIntFromText(cells[3]),
+      change: cells[4] || null,
+    });
+  }
+
+  return rows;
+}
+
 function extractMarkdownTables(lines) {
   const tables = [];
   let currentTable = [];
@@ -318,6 +360,22 @@ function parseMarkdownSeason(lines) {
   };
 }
 
+function buildRatingHistoryFromUpdates(updateHistory) {
+  if (!Array.isArray(updateHistory) || !updateHistory.length) {
+    return null;
+  }
+
+  const rows = updateHistory
+    .filter((entry) => entry.rating !== null && entry.rating !== undefined)
+    .map((entry) => [entry.updated || 'Unknown', entry.rating]);
+
+  if (!rows.length) {
+    return null;
+  }
+
+  return [['Update', 'Rating'], ...rows];
+}
+
 function parseMarkdownProfile(markdown) {
   const lines = markdown
     .split('\n')
@@ -330,17 +388,21 @@ function parseMarkdownProfile(markdown) {
 
   const statsIndex = lines.findIndex((line) => line.includes('#### Stats (Total)'));
   const skillIndex = lines.findIndex((line) => line.includes('#### Skill Rating'));
+  const titlesEnd = statsIndex >= 0 ? statsIndex : skillIndex >= 0 ? skillIndex : lines.length;
+  const skillStart = skillIndex >= 0 ? skillIndex : lines.length;
 
   const titles = lines
-    .slice(1, statsIndex)
+    .slice(1, titlesEnd)
     .map((line) => line.replace(/!\[.*?\]\(.*?\)/g, '').replace(/^\s+|\s+$/g, ''))
     .map((line) => normalizeWhitespace(line))
     .filter((line) => line && !line.startsWith('Image') && !line.includes('Updated') && !line.includes('Avatar'))
     .filter((line) => !/URL Source|Markdown Content/i.test(line))
     .filter((line) => !/^S\d+$/i.test(line));
 
-  const totalStats = parseMarkdownStatsTable(lines.slice(statsIndex, skillIndex));
-  const currentSeason = parseMarkdownSeason(lines.slice(skillIndex));
+  const totalStats = parseMarkdownStatsTable(lines.slice(statsIndex >= 0 ? statsIndex : lines.length, skillStart));
+  const currentSeason = parseMarkdownSeason(lines.slice(skillStart));
+  const updateHistory = parseMarkdownUpdateHistory(lines);
+  const ratingHistory = buildRatingHistoryFromUpdates(updateHistory);
 
   return {
     displayName: profileName,
@@ -349,8 +411,42 @@ function parseMarkdownProfile(markdown) {
     titles,
     totalStats,
     currentSeason,
-    updateHistory: [],
+    updateHistory,
+    ratingHistory,
   };
+}
+
+function extractChartData(html) {
+  // Extract the chart data from the JavaScript embedded in the HTML
+  const dataMatch = html.match(/data\.addRows\(\[([\s\S]*?)\]\)/);
+  if (!dataMatch) return null;
+
+  const dataRows = dataMatch[1];
+  
+  // Parse each row: [new Date(timestamp*1000), val1, val2, ...]
+  const rows = [];
+  const rowMatches = [...dataRows.matchAll(/\[new Date\((\d+)\*1000\),\s*([^\]]+)\]/g)];
+  
+  if (rowMatches.length === 0) return null;
+
+  // Build header: ['Date', 'Duel', 'Doubles', 'Standard', 'Tournament', 'Quads', 'Heatseeker', 'Hoops', 'Rumble', 'Dropshot', 'Snow Day', 'Casual']
+  const header = ['Date', 'Duel', 'Doubles', 'Standard', 'Tournament', 'Quads', 'Heatseeker', 'Hoops', 'Rumble', 'Dropshot', 'Snow Day', 'Casual'];
+  const result = [header];
+
+  // Parse each row
+  for (const match of rowMatches) {
+    const timestamp = parseInt(match[1]) * 1000; // Convert to milliseconds
+    const values = match[2]
+      .split(',')
+      .map((v) => parseInt(normalizeWhitespace(v)))
+      .filter((v) => !isNaN(v));
+
+    if (values.length > 0) {
+      result.push([new Date(timestamp), ...values]);
+    }
+  }
+
+  return result.length > 1 ? result : null;
 }
 
 function parseHtmlProfile(html) {
@@ -397,6 +493,11 @@ function parseHtmlProfile(html) {
     })
     .filter(Boolean);
 
+  let ratingHistory = extractChartData(html);
+  if (!ratingHistory) {
+    ratingHistory = buildRatingHistoryFromUpdates(updateRows);
+  }
+
   return {
     displayName,
     platform: 'Epic',
@@ -405,6 +506,7 @@ function parseHtmlProfile(html) {
     totalStats,
     currentSeason,
     updateHistory: updateRows,
+    ratingHistory,
   };
 }
 

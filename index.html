@@ -51,33 +51,93 @@
       });
     }
 
-    function drawPerformanceChart(ratingHistory) {
+    function drawPerformanceChart(chartData, chartTitle) {
       google.charts.load('current', {'packages':['corechart']});
       google.charts.setOnLoadCallback(function() {
-        if (!ratingHistory || ratingHistory.length === 0) return;
+        if (!chartData || chartData.length === 0) return;
 
-        // Prepare data for chart
-        const data = google.visualization.arrayToDataTable(ratingHistory);
-        
+        const data = google.visualization.arrayToDataTable(chartData);
+        // configure series: first column is the data series, remaining columns are horizontal level references
+        const seriesOptions = {};
+        const cols = data.getNumberOfColumns();
+        // main series style (series 0)
+        seriesOptions[0] = { color: '#4be37a', lineWidth: 3, pointSize: 6 };
+
+        // style any additional series as thin dashed reference lines
+        for (let c = 1; c < cols; c += 1) {
+          seriesOptions[c] = {
+            color: 'rgba(200,200,200,0.25)',
+            lineWidth: 1,
+            pointSize: 0,
+            enableInteractivity: false,
+            visibleInLegend: false,
+            lineDashStyle: [4, 4]
+          };
+        }
+
         const options = {
-          title: 'Rating Progress Over Time',
-          curveType: 'function',
-          legend: { position: 'bottom' },
+          title: chartTitle || '',
+          legend: { position: 'none' },
+          backgroundColor: 'transparent',
+          chartArea: { left: 70, right: 20, top: 60, bottom: 100, width: '85%', height: '65%' },
           hAxis: {
-            title: 'Date',
-            format: 'MMM d'
+            title: '',
+            slantedText: true,
+            slantedTextAngle: 45,
+            textStyle: { color: '#c9d1d9' },
+            titleTextStyle: { color: '#ffd700' }
           },
           vAxis: {
-            title: 'Rating'
+            minValue: -1.2,
+            maxValue: 1.2,
+            ticks: [{v:-1,f:'Loss'},{v:0,f:''},{v:1,f:'Win'}],
+            textStyle: { color: '#c9d1d9' },
+            titleTextStyle: { color: '#ffd700' }
           },
-          pointSize: 4,
+          pointSize: 6,
           lineWidth: 2,
-          chartArea: { width: '85%', height: '80%' }
+          series: seriesOptions,
+          tooltip: {
+            textStyle: { color: '#001a00' },
+            showColorCode: true,
+            isHtml: true
+          },
+          fontName: 'Roboto'
         };
 
         const chart = new google.visualization.LineChart(document.getElementById('performanceChart'));
         chart.draw(data, options);
       });
+    }
+
+    function buildStreakChartData(profile) {
+      const modes = Array.isArray(profile?.currentSeason?.modes) ? profile.currentSeason.modes : [];
+      const rows = modes
+        .filter((mode) => mode?.streak && typeof mode.streak.count === 'number')
+        .map((mode) => {
+          const sign = mode.streak.type === 'loss' ? -1 : 1;
+          const count = Number(mode.streak.count || 0) * sign;
+          return [`${mode.label} ${mode.streak.type === 'win' ? 'Win' : 'Loss'}`, count];
+        });
+
+      return rows.length ? [['Mode', 'Streak'], ...rows] : null;
+    }
+
+    function buildOutcomeSequenceChartData(profile) {
+      const updates = Array.isArray(profile?.updateHistory) ? profile.updateHistory : [];
+      if (!updates.length) return null;
+
+      // Reverse to chronological order (oldest first)
+      const sequence = updates.slice().reverse().map((u, idx) => {
+        const changeStr = String(u.change || '').trim();
+        const match = changeStr.match(/-?\d+/);
+        const num = match ? Number(match[0]) : null;
+        const val = num === null ? 0 : num > 0 ? 1 : num < 0 ? -1 : 0;
+        const label = u.updated || `#${idx + 1}`;
+        return [label, val];
+      });
+
+      return [['Match', 'Outcome'], ...sequence];
     }
 
     function formatValue(value) {
@@ -180,6 +240,68 @@
       return article;
     }
 
+    function renderRecentMatches(matches) {
+      const section = document.createElement('section');
+      section.className = 'history-section';
+
+      const heading = document.createElement('h3');
+      heading.textContent = 'Recent Matches';
+      section.appendChild(heading);
+
+      if (!matches || !matches.length) {
+        const fallback = document.createElement('p');
+        fallback.className = 'empty-state';
+        fallback.textContent = 'No recent matches were found.';
+        section.appendChild(fallback);
+        return section;
+      }
+
+      const tableWrapper = document.createElement('div');
+      tableWrapper.className = 'history-table-wrap';
+
+      const table = document.createElement('table');
+      table.className = 'history-table';
+
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>Updated</th>
+          <th>Playlist</th>
+          <th>Matches</th>
+          <th>Rating</th>
+          <th>Change</th>
+        </tr>
+      `;
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      matches.slice(0, 12).forEach((match) => {
+        const row = document.createElement('tr');
+        const changeValue = String(match.change || '').trim();
+        const changeNumber = Number(changeValue.replace(/[^\d-]/g, ''));
+        const isUp = changeNumber > 0;
+        const isDown = changeNumber < 0;
+
+        row.innerHTML = `
+          <td>${match.updated || '—'}</td>
+          <td>${match.playlist || '—'}</td>
+          <td>${match.matches !== null && match.matches !== undefined ? match.matches : '—'}</td>
+          <td>${match.rating !== null && match.rating !== undefined ? match.rating : '—'}</td>
+        `;
+
+        const changeCell = document.createElement('td');
+        changeCell.className = 'history-change-cell';
+        changeCell.innerHTML = `<span class="history-change ${isUp ? 'up' : isDown ? 'down' : ''}">${isUp ? '▲ ' : isDown ? '▼ ' : ''}${changeValue || '—'}</span>`;
+        row.appendChild(changeCell);
+        tbody.appendChild(row);
+      });
+
+      table.appendChild(tbody);
+      tableWrapper.appendChild(table);
+      section.appendChild(tableWrapper);
+      return section;
+    }
+
     function renderProfile(accountId) {
       const container = document.getElementById('profileContent');
       const profile = profiles[accountId];
@@ -263,23 +385,45 @@
       modesSection.append(modesHeading, modesGrid);
       container.append(header, statsSection, modesSection);
 
-      // Add performance chart if history data exists
-      if (profile.ratingHistory && profile.ratingHistory.length > 0) {
+      // Add performance chart: prefer recent match outcomes, fall back to streak counts
+      const outcomeChartData = buildOutcomeSequenceChartData(profile);
+      const streakChartData = buildStreakChartData(profile);
+      if (outcomeChartData && outcomeChartData.length > 1) {
         const chartSection = document.createElement('section');
         chartSection.className = 'chart-section';
         const chartHeading = document.createElement('h3');
-        chartHeading.textContent = 'Performance Chart';
+        chartHeading.textContent = 'Recent Match Outcomes';
         const chartContainer = document.createElement('div');
         chartContainer.id = 'performanceChart';
         chartContainer.style.width = '100%';
-        chartContainer.style.height = '400px';
+        chartContainer.style.height = '420px';
         chartSection.append(chartHeading, chartContainer);
         container.appendChild(chartSection);
-        drawPerformanceChart(profile.ratingHistory);
+        drawPerformanceChart(outcomeChartData, '');
+      } else if (streakChartData && streakChartData.length > 0) {
+        const chartSection = document.createElement('section');
+        chartSection.className = 'chart-section';
+        const chartHeading = document.createElement('h3');
+        chartHeading.textContent = 'Current Win / Loss Streaks';
+        const chartContainer = document.createElement('div');
+        chartContainer.id = 'performanceChart';
+        chartContainer.style.width = '100%';
+        chartContainer.style.height = '420px';
+        chartSection.append(chartHeading, chartContainer);
+        container.appendChild(chartSection);
+        drawPerformanceChart(streakChartData, 'Current Win / Loss Streaks');
+      }
+
+      if (profile.updateHistory && profile.updateHistory.length > 0) {
+        container.appendChild(renderRecentMatches(profile.updateHistory));
       }
     }
 
     async function loadProfiles() {
+      const apiBase = window.location.hostname === 'localhost' && window.location.port === '8000'
+        ? 'http://localhost:3000'
+        : '';
+
       setStatus('');
       renderTabs();
       renderProfile(activeAccount);
@@ -287,7 +431,7 @@
       try {
         const results = await Promise.allSettled(
           accountIds.map(async (accountId) => {
-            const response = await fetch(`/api/stats/${accountId}`);
+            const response = await fetch(`${apiBase}/api/stats/${accountId}`);
             const payload = await response.json();
 
             if (!response.ok || !payload.profile) {

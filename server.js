@@ -60,7 +60,7 @@ app.get('/api/stats/:epicId', async (req, res) => {
 
     res.json({ profile });
   } catch (error) {
-    console.error('Failed to fetch RLStats profile:', error.message);
+    console.error('Failed to fetch profile:', error.message);
     res.status(502).json({
       error: 'Failed to fetch the profile. The page may be blocking automated requests right now.',
     });
