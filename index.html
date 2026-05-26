@@ -5,6 +5,7 @@
   <title>Rocket League Stats Viewer</title>
   <link rel="stylesheet" href="/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&family=Roboto&display=swap" rel="stylesheet">
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 </head>
 <body>
   <div class="page-shell">
@@ -47,6 +48,35 @@
           renderProfile(activeAccount);
         });
         tabRow.appendChild(button);
+      });
+    }
+
+    function drawPerformanceChart(ratingHistory) {
+      google.charts.load('current', {'packages':['corechart']});
+      google.charts.setOnLoadCallback(function() {
+        if (!ratingHistory || ratingHistory.length === 0) return;
+
+        // Prepare data for chart
+        const data = google.visualization.arrayToDataTable(ratingHistory);
+        
+        const options = {
+          title: 'Rating Progress Over Time',
+          curveType: 'function',
+          legend: { position: 'bottom' },
+          hAxis: {
+            title: 'Date',
+            format: 'MMM d'
+          },
+          vAxis: {
+            title: 'Rating'
+          },
+          pointSize: 4,
+          lineWidth: 2,
+          chartArea: { width: '85%', height: '80%' }
+        };
+
+        const chart = new google.visualization.LineChart(document.getElementById('performanceChart'));
+        chart.draw(data, options);
       });
     }
 
@@ -232,6 +262,21 @@
 
       modesSection.append(modesHeading, modesGrid);
       container.append(header, statsSection, modesSection);
+
+      // Add performance chart if history data exists
+      if (profile.ratingHistory && profile.ratingHistory.length > 0) {
+        const chartSection = document.createElement('section');
+        chartSection.className = 'chart-section';
+        const chartHeading = document.createElement('h3');
+        chartHeading.textContent = 'Performance Chart';
+        const chartContainer = document.createElement('div');
+        chartContainer.id = 'performanceChart';
+        chartContainer.style.width = '100%';
+        chartContainer.style.height = '400px';
+        chartSection.append(chartHeading, chartContainer);
+        container.appendChild(chartSection);
+        drawPerformanceChart(profile.ratingHistory);
+      }
     }
 
     async function loadProfiles() {

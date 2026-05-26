@@ -279,6 +279,27 @@ body {
   margin: 0;
 }
 
+.chart-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1.5px solid #2e4d2e;
+}
+
+.chart-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.3rem;
+  color: #4be37a;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 600;
+}
+
+#performanceChart {
+  background: rgba(16, 25, 18, 0.5);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #2e4d2e;
+}
+
 @media (max-width: 640px) {
   .page-shell {
     padding: 18px 12px 40px;
@@ -409,6 +430,20 @@ body {
 
   .empty-state {
     font-size: 0.95rem;
+  }
+
+  .chart-section {
+    margin-top: 20px;
+    padding-top: 20px;
+  }
+
+  .chart-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 14px;
+  }
+
+  #performanceChart {
+    padding: 12px;
   }
 }
 
